@@ -46,25 +46,22 @@ class DBConnection:
             pass
 
     # update the data to database
-    def updateData(self, id, data, mode):
+    def updateData(self, index, data, mode):
         try:
             with self.conn.cursor() as cursor:
                 # change password in use rta
                 if mode == 1:
-                    sql = 'UPDATE user SET pw = %s WHERE id = %s'
+                    sql = 'UPDATE user SET pw = %s WHERE myIdx = %s'
 
                 # update current money in user table
                 elif mode == 2:
-                    sql = 'UPDATE user SET money = %s WHERE id = %s'
+                    sql = 'UPDATE user SET money = %s WHERE myIdx = %s'
                     data = int(data)
-
                 # update auction price in room table
                 elif mode == 3:
                     sql = 'UPDATE room SET price = %s WHERE roomIdx = %s'
-                    id = int(id)
                     data = int(data)
-
-                cursor.execute(sql, (data, id))
+                cursor.execute(sql, (data, index))
                 self.conn.commit()
                 return True
         finally:
@@ -173,7 +170,6 @@ class DBConnection:
                 elif mode == 6:
                     sql = 'SELECT prebuyer FROM room WHERE roomIdx = %s'
                     data = int(data)
-
                 if mode == 5:
                     cursor.execute(sql, None)
                 else:
@@ -187,7 +183,7 @@ class DBConnection:
     def getPreBuyer(self, roomIdx):
         try:
             with self.conn.cursor() as cursor:
-                sql = 'select item.itemName, room.prebuyer from item, room where room.roomIdx = item.roomIdx and room.roomIdx = %s'
+                sql = 'select room.prebuyer, item.itemName from item, room where room.roomIdx = item.roomIdx and room.roomIdx = %s'
                 cursor.execute(sql, roomIdx)
                 self.conn.commit()
                 result = cursor.fetchone()

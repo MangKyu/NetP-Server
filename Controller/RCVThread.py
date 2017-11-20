@@ -68,7 +68,6 @@ class RCVThread(threading.Thread):
                 sendDict['ID'] = msgDict['ID']
                 self.user = User.User(self.clientSocket, msgDict['ID'], sendDict['MONEY'], self.db.getData(msgDict['ID'], 1))
                 self.mc.userList.append(self.user)
-
         elif msgDict['MSG'] == '/MAIL':
             mailBool = self.db.search(msgDict['MAIL'], 3)
             sendDict['MSG'] = '/MAIL'
@@ -87,7 +86,7 @@ class RCVThread(threading.Thread):
         elif msgDict['MSG'] == '/CHPW':
             sendDict['MSG'] = '/CHPW'
             if self.db.getData(msgDict['ID'], 4) == msgDict['CURPW']:
-                chBool = self.db.updateData(msgDict['ID'], msgDict['NEWPW'], 1)
+                chBool = self.db.updateData(msgDict['ID'], msgDict['NEWPW'], self.db.getData(msgDict['ID'], 1))
                 if chBool:
                     sendDict['RPLY'] = 'ACK'
 
@@ -121,9 +120,11 @@ class RCVThread(threading.Thread):
         elif msgDict['MSG'] == '/ACRQ':
             myIdx = self.db.getData(msgDict['BUYER'], 1)
             preData = self.db.getPreBuyer(msgDict['RIDX'])
-            rFlag = self.db.reqAuction(msgDict['RIDX'], myIdx, msgDict['PRICE'])
-            self.sendAlarm(preData[0], preData[1], '/FAIED', msgDict['PRICE'])
 
+            # itname, prebuyer, msg, sgDict
+            self.sendAlarm(preData[0], preData[1], '/FAILED', msgDict['PRICE'])
+
+            rFlag = self.db.reqAuction(msgDict['RIDX'], myIdx, msgDict['PRICE'])
             if rFlag:
                 sendDict['RPLY'] = 'ACK'
                 sendDict['MSG'] = '/ACRQ'
@@ -167,19 +168,25 @@ class RCVThread(threading.Thread):
 
     # send alarm to client who is joining in the auction
     def sendAlarm(self, buyer, itemName, msg, money=None):
-        sendDict = {'MSG': '/ALRM', 'RPLY': 'ACK'}
+
+        sendDict = {'MSG': '/ALRM'}
         if msg == '/SUCCESS':
-            msg = 'Auction ' + itemName +' SUCCESS'
+            sendDict['CNT'] = 'Auction ' + itemName +' SUCCESS'
             sendDict['MONEY'] = money
+            sendDict['RPLY'] = 'ACK'
         elif msg == '/FAILED':
-            msg = 'Auction ' + itemName + ' FAILED'
+            sendDict['CNT'] = 'Auction ' + itemName + ' FAILED'
             sendDict['RPLY'] = 'REJ'
-        sendDict['CNT'] = msg
+        elif msg == '/SELLER':
+            sendDict['RPLY'] = 'NON'
+            sendDict['MONEY'] = money
 
         for i in range(len(self.mc.userList)):
             if buyer == self.mc.userList[i].myIdx:
-                self.sendMsg(sendDict)
-                break
+                sendDict = str(sendDict)
+                print('Server Send: ' + sendDict)
+                aesMsg = self.aesCipher.encrypt(sendDict)
+                self.mc.userList[i].clientSock.send(aesMsg)
 
     # Send image to Client
     def sendImg(self, imgPath):
