@@ -45,7 +45,7 @@ class MainController:
         roomThread.start()
 
     # create room list
-    def createList(self, rooms):
+    def createRoomList(self, rooms):
         roomList = []
         for i in range(len(rooms)):
             roomList.append(rooms[i])

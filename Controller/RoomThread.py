@@ -37,7 +37,6 @@ class RoomThread(threading.Thread):
                     # 판매자 돈 플러스
                     sellerIdx = self.db.getData(self.room.item.seller, 1)
                     self.db.updateData(sellerIdx, reqMoney + self.db.getData(self.room.item.seller, 1), 2)
-                    print('b')
                     self.rcvThread.sendAlarm(buyer, self.room.item.itemName, '/SUCCESS', reqMoney)
                     self.rcvThread.sendAlarm(self.db.getData(self.room.item.seller, 1), self.room.item.itemName, '/SELLER', reqMoney)
                 else:

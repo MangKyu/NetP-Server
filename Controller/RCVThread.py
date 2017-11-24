@@ -44,9 +44,10 @@ class RCVThread(threading.Thread):
 
                     elif msg['MSG'] == '/ACRQ':
                         self.sendRoomRef(self.mc.userList, msg)
-        #except:
-        #    self.exit()
-
+                    elif msg['MSG'] == '/WCLT' and msg['RPLY'] == 'ACK':
+                        roomList = msg['ROOMS']
+                        for i in range(len(roomList)):
+                            self.sendImg(roomList[i][1])
     # analyze the message
     def analyzeMsg(self, msg):
         msgDict = self.aesCipher.decrypt(msg)
@@ -112,9 +113,16 @@ class RCVThread(threading.Thread):
                     self.recvImg(item.imgPath)
                     self.mc.createRoom(roomIdx, endTime, item)
 
-        elif msgDict['MSG'] == '/RINF':
+        elif msgDict['MSG'] == '/RINF' or msgDict['MSG'] == '/CHWC':
             info = self.db.getItem(msgDict['RIDX'])
             sendDict = self.mc.createItemDict(sendDict, info)
+            sendDict['WATCH'] = self.db.checkWatch(self.user.myIdx, msgDict['RIDX'])
+            if msgDict['MSG'] == '/CHWC':
+                if sendDict['WATCH']:
+                    self.db.updateWatch(msgDict['RIDX'], self.user.myIdx, 1)
+                else:
+                    self.db.updateWatch(msgDict['RIDX'], self.user.myIdx, 2)
+                sendDict['WATCH'] = not sendDict['WATCH']
             sendDict['RIDX'] = msgDict['RIDX']
 
         elif msgDict['MSG'] == '/ACRQ':
@@ -141,6 +149,15 @@ class RCVThread(threading.Thread):
             self.sendListRef(self.mc.userList, 'ONE')
             sendDict = msgDict
 
+        elif msgDict['MSG'] == '/WCLT':
+            print(self.user.myIdx)
+            print(self.user.id)
+            wFlag = self.db.search(self.db.getData(msgDict['ID'], 1), 4)
+            #wFlag가 없는지에 대한 True를 나타내므로 not wFlag로
+            if not wFlag:
+                sendDict['RPLY'] = 'ACK'
+                sendDict['ROOMS'] = self.db.getMyRooms(self.db.getData(msgDict['ID'], 1),3)
+            sendDict['MSG'] = msgDict['MSG']
         else:
             pass
         return sendDict
@@ -192,6 +209,7 @@ class RCVThread(threading.Thread):
     def sendImg(self, imgPath):
         with open(imgPath, 'rb') as f:
             img = f.read()
+            print(img)
             self.clientSocket.send(img)
             self.clientSocket.send(bytes('`', 'utf-8'))
             f.close()
@@ -209,7 +227,7 @@ class RCVThread(threading.Thread):
         sendDict['MSG'] = '/ACLT'
         myIdx = self.db.getData(sendDict['ID'], 1)
         rooms = self.db.getMyRooms(myIdx, mode)
-        sendDict['ROOMS'] = self.mc.createList(rooms)
+        sendDict['ROOMS'] = self.mc.createRoomList(rooms)
         sendDict.pop('ID')
         return sendDict
 
@@ -217,7 +235,7 @@ class RCVThread(threading.Thread):
     def sendListRef(self, userList, mode):
         sendDict = {'MSG': '/RLST'}
         rooms = self.db.getRooms(self.mc.alarmIdx)
-        sendDict['ROOMS'] = self.mc.createList(rooms)
+        sendDict['ROOMS'] = self.mc.createRoomList(rooms)
         if mode == 'ALL':
             aesMsg = self.aesCipher.encrypt(sendDict)
             for i in range(len(userList)):

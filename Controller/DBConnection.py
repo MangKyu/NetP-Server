@@ -79,6 +79,10 @@ class DBConnection:
                 elif mode == 2:
                     sql = 'SELECT item.roomIdx, user.name,itemName FROM item, user, auclist where auclist.teller = %s and auclist.teller = user.myIdx and auclist.roomIdx = item.roomIdx'
                     cursor.execute(sql, int(myIdx))
+                elif mode == 3:
+                    sql = 'select itemName, imgPath, price, room.roomIdx FROM room, item, watchlist where watchlist.roomIdx=room.roomIdx ' \
+                          'and room.roomIdx = item.roomIdx and watchlist.myIdx = %s'
+                    cursor.execute(sql, int(myIdx))
                 result = cursor.fetchall()
                 self.conn.commit()
                 return result
@@ -108,14 +112,18 @@ class DBConnection:
             pass
 
     # delete the tuple from db
-    def delete(self, id):
+    def updateWatch(self, roomIdx, myIdx, mode):
         try:
             with self.conn.cursor() as cursor:
-                sql = 'DELETE FROM user WHERE id = %s'
-                cursor.execute(sql, id)
+                if mode == 1:
+                    sql = 'DELETE FROM watchlist WHERE myIdx = %s and roomIdx = %s'
+                elif mode ==2:
+                    sql = 'INSERT INTO watchlist (myIdx, roomIdx) VALUES (%s, %s)'
+                cursor.execute(sql, (myIdx, roomIdx))
                 self.conn.commit()
+                return True
         finally:
-            pass
+            return False
 
     # search the tuple from db
     def search(self, msg, mode):
@@ -132,6 +140,9 @@ class DBConnection:
                 # search Mail
                 elif mode == 3:
                     sql = 'SELECT mail FROM user WHERE mail = %s '
+                elif mode == 4:
+                    sql = 'SELECT roomIdx FROM watchlist WHERE myIdx = %s'
+                    msg = int(msg)
 
                 cursor.execute(sql, msg)
                 result = cursor.fetchone()
@@ -143,6 +154,20 @@ class DBConnection:
         finally:
             pass
 
+    def checkWatch(self, myIdx, roomIdx):
+        try:
+            with self.conn.cursor() as cursor:
+                # check watchlist
+                sql = 'SELECT roomIdx FROM watchlist WHERE myIdx = %s and roomIdx = %s'
+                cursor.execute(sql, (myIdx, roomIdx))
+                result = cursor.fetchone()
+                self.conn.commit()
+                if result:
+                    return True
+                else:
+                    return False
+        finally:
+            pass
     # search the tuple from db
     def getData(self, data, mode):
         try:
