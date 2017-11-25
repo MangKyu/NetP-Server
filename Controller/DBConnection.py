@@ -28,14 +28,14 @@ class DBConnection:
                     sql = 'INSERT INTO room (startTime, endTime, price) VALUES (%s, %s, %s)'
                     nowDateTime, laterDateTime = self.createDate()
                     cursor.execute(sql, (nowDateTime, laterDateTime, msgDict['PRICE']))
-                    roomIdx = self.getData(None, 5)
+                    roomIdx = self.getData(None, 1)
                     return True, roomIdx, laterDateTime
 
                 # insert item data into item table
                 elif mode == 3:
                     item = msgDict['ITEM']
-                    roomIdx = self.getData(item.seller, 5)
-                    seller = self.getData(item.seller, 1)
+                    roomIdx = self.getData(None, 1)
+                    seller = self.getIndex(item.seller)
                     sql = 'INSERT INTO item (roomIdx, seller, itemName, imgPath, itemDesc) ' \
                           'VALUES (%s, %s, %s, %s, %s) '
                     cursor.execute(sql, (int(roomIdx), int(seller), item.itemName,
@@ -168,40 +168,38 @@ class DBConnection:
                     return False
         finally:
             pass
-    # search the tuple from db
-    def getData(self, data, mode):
+
+    def getData_Index(self, data, mode):
         try:
             with self.conn.cursor() as cursor:
-                # get myIdx
+                # get password
                 if mode == 1:
-                    sql = 'SELECT myIdx FROM user WHERE id = %s'
+                    sql = 'SELECT pw FROM user WHERE myIdx = %s '
 
-                # get name
+                # get Money
                 elif mode == 2:
-                    sql = 'SELECT name FROM user WHERE id = %s '
-
-                # get money
+                    sql = 'SELECT money FROM user WHERE myIdx = %s '
+                # get name
                 elif mode == 3:
-                    sql = 'SELECT money FROM user WHERE id = %s '
+                    sql = 'SELECT name FROM user WHERE myIdx = %s '
 
-                # get pw
-                elif mode == 4:
-                    sql = 'SELECT pw FROM user WHERE id = %s '
 
-                # get roomIdx
-                elif mode == 5:
-                    sql = 'SELECT roomIdx FROM room ORDER BY roomIdx DESC LIMIT 1'
-
-                elif mode == 6:
-                    sql = 'SELECT prebuyer FROM room WHERE roomIdx = %s'
-                    data = int(data)
-                if mode == 5:
-                    cursor.execute(sql, None)
-                else:
-                    cursor.execute(sql, data)
+                cursor.execute(sql, data)
                 result = cursor.fetchone()
                 self.conn.commit()
                 return result[0]
+        finally:
+            pass
+    # search the tuple from db
+    def getIndex(self, id):
+        try:
+            with self.conn.cursor() as cursor:
+            # get myIdx
+                sql = 'SELECT myIdx FROM user WHERE id = %s'
+                cursor.execute(sql, id)
+                result = cursor.fetchone()
+                self.conn.commit()
+            return result[0]
         finally:
             pass
 
@@ -226,8 +224,29 @@ class DBConnection:
         finally:
             pass
 
+    def getData(self, data, mode):
+        try:
+            with self.conn.cursor() as cursor:
+                # get myIdx
+                if mode == 1:
+                    sql = 'SELECT roomIdx FROM room ORDER BY roomIdx DESC LIMIT 1'
+
+                # get name
+                elif mode == 2:
+                    sql = 'SELECT prebuyer FROM room WHERE roomIdx = %s'
+                    data = int(data)
+                if mode == 1:
+                    cursor.execute(sql, None)
+                else:
+                    cursor.execute(sql, data)
+                result = cursor.fetchone()
+                self.conn.commit()
+                return result[0]
+        finally:
+            pass
+
     def insertAuc(self, roomIdx):
-        teller = self.getData(roomIdx, 6)
+        teller = self.getData(roomIdx, 2)
         try:
             with self.conn.cursor() as cursor:
                 sql = 'INSERT INTO auclist (roomIdx, teller) VALUES (%s, %s)'

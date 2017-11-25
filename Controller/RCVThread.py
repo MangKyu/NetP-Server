@@ -23,7 +23,7 @@ class RCVThread(threading.Thread):
 
     # start thread
     def run(self):
-        #try:
+        try:
             while self.connFlag:
                 msg = self.clientSocket.recv(self.BUFSIZ)
                 print('Server Received:' + str(msg))
@@ -36,18 +36,19 @@ class RCVThread(threading.Thread):
                         mode = 'ONE'
                         if msg['MSG'] == '/SLIT':
                             mode = 'ALL'
-                            print(mode)
                             self.mc.createRoomThread(self, msg['RIDX'], self.db)
                         self.sendListRef(self.mc.userList, mode)
                     elif msg['MSG'] == '/RINF':
                         self.sendImg(msg['ITPATH'])
-
                     elif msg['MSG'] == '/ACRQ':
                         self.sendRoomRef(self.mc.userList, msg)
                     elif msg['MSG'] == '/WCLT' and msg['RPLY'] == 'ACK':
                         roomList = msg['ROOMS']
                         for i in range(len(roomList)):
                             self.sendImg(roomList[i][1])
+        except:
+            print('노노노노~')
+
     # analyze the message
     def analyzeMsg(self, msg):
         msgDict = self.aesCipher.decrypt(msg)
@@ -63,11 +64,12 @@ class RCVThread(threading.Thread):
             pwBool = self.db.search(msgDict['PW'], 2)
             sendDict['MSG'] = '/LGIN'
             if not idBool and not pwBool:
-                sendDict['NAME'] = self.db.getData(msgDict['ID'], 2)
-                sendDict['MONEY'] = self.db.getData(msgDict['ID'], 3)
+                myIdx = self.db.getIndex(msgDict['ID'])
+                sendDict['MONEY'] = self.db.getData_Index(myIdx, 2)
+                sendDict['NAME'] = self.db.getData_Index(myIdx, 3)
                 sendDict['RPLY'] = 'ACK'
                 sendDict['ID'] = msgDict['ID']
-                self.user = User.User(self.clientSocket, msgDict['ID'], sendDict['MONEY'], self.db.getData(msgDict['ID'], 1))
+                self.user = User.User(self.clientSocket, msgDict['ID'], sendDict['MONEY'], myIdx)
                 self.mc.userList.append(self.user)
         elif msgDict['MSG'] == '/MAIL':
             mailBool = self.db.search(msgDict['MAIL'], 3)
@@ -79,22 +81,19 @@ class RCVThread(threading.Thread):
             signUpBool = self.db.insert(msgDict, 1)
             sendDict['MSG'] = '/SGUP'
             if signUpBool:
-                sendDict['NAME'] = self.db.getData(msgDict['ID'], 2)
-                sendDict['MONEY'] = self.db.getData(msgDict['ID'], 3)
                 sendDict['RPLY'] = 'ACK'
-                sendDict['ID'] = msgDict['ID']
 
         elif msgDict['MSG'] == '/CHPW':
             sendDict['MSG'] = '/CHPW'
-            if self.db.getData(msgDict['ID'], 4) == msgDict['CURPW']:
-                chBool = self.db.updateData(msgDict['ID'], msgDict['NEWPW'], self.db.getData(msgDict['ID'], 1))
+            if self.db.getData_Index(self.user.myIdx, 1) == msgDict['CURPW']:
+                chBool = self.db.updateData(self.user.myIdx, msgDict['NEWPW'], 1)
                 if chBool:
                     sendDict['RPLY'] = 'ACK'
 
         elif msgDict['MSG'] == '/CHMN':
-            curMoney = self.db.getData(msgDict['ID'], 3)
+            curMoney = self.db.getData_Index(self.user.myIdx, 2)
             curMoney = int(curMoney) + int(msgDict['MONEY'])
-            cgBool = self.db.updateData(msgDict['ID'], curMoney, 2)
+            cgBool = self.db.updateData(self.user.myIdx, curMoney, 2)
             sendDict['MSG'] = '/CHMN'
             if cgBool:
                 sendDict['RPLY'] = 'ACK'
@@ -126,7 +125,7 @@ class RCVThread(threading.Thread):
             sendDict['RIDX'] = msgDict['RIDX']
 
         elif msgDict['MSG'] == '/ACRQ':
-            myIdx = self.db.getData(msgDict['BUYER'], 1)
+            myIdx = self.user.myIdx
             preData = self.db.getPreBuyer(msgDict['RIDX'])
 
             # itname, prebuyer, msg, sgDict
@@ -150,13 +149,11 @@ class RCVThread(threading.Thread):
             sendDict = msgDict
 
         elif msgDict['MSG'] == '/WCLT':
-            print(self.user.myIdx)
-            print(self.user.id)
-            wFlag = self.db.search(self.db.getData(msgDict['ID'], 1), 4)
+            wFlag = self.db.search(self.user.myIdx, 4)
             #wFlag가 없는지에 대한 True를 나타내므로 not wFlag로
             if not wFlag:
                 sendDict['RPLY'] = 'ACK'
-                sendDict['ROOMS'] = self.db.getMyRooms(self.db.getData(msgDict['ID'], 1),3)
+                sendDict['ROOMS'] = self.db.getMyRooms(self.user.myIdx, 3)
             sendDict['MSG'] = msgDict['MSG']
         else:
             pass
@@ -225,10 +222,9 @@ class RCVThread(threading.Thread):
     # get room list from database
     def getRoomList(self, sendDict, mode):
         sendDict['MSG'] = '/ACLT'
-        myIdx = self.db.getData(sendDict['ID'], 1)
+        myIdx = self.user.myIdx
         rooms = self.db.getMyRooms(myIdx, mode)
         sendDict['ROOMS'] = self.mc.createRoomList(rooms)
-        sendDict.pop('ID')
         return sendDict
 
     # send room list data to client

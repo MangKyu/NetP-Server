@@ -26,19 +26,21 @@ class RoomThread(threading.Thread):
 
                 #money to buy item
                 reqMoney = aucData[1]
-                #get user's money
-                money = self.db.getData(self.rcvThread.user.id, 3)
-                price = money - reqMoney
 
+                #get user's money
+                money = self.db.getData_Index(self.rcvThread.user.myIdx, 2)
+                price = money - reqMoney
                 if money >= reqMoney and buyer != None:
                     self.db.insertAuc(self.room.roomIdx)
                     # 구매자 돈 마이너스
                     self.db.updateData(self.rcvThread.user.myIdx, price, 2)
+
                     # 판매자 돈 플러스
-                    sellerIdx = self.db.getData(self.room.item.seller, 1)
-                    self.db.updateData(sellerIdx, reqMoney + self.db.getData(self.room.item.seller, 1), 2)
+                    sellerIdx = self.db.getIndex(self.room.item.seller)
+                    self.db.updateData(sellerIdx, reqMoney + self.db.getData_Index(sellerIdx, 2), 2)
+
                     self.rcvThread.sendAlarm(buyer, self.room.item.itemName, '/SUCCESS', reqMoney)
-                    self.rcvThread.sendAlarm(self.db.getData(self.room.item.seller, 1), self.room.item.itemName, '/SELLER', reqMoney)
+                    self.rcvThread.sendAlarm(sellerIdx, self.room.item.itemName, '/SELLER', reqMoney)
                 else:
                     self.db.updateData(self.room.roomIdx, -1, 3)
                 sendDict = {'RPLY': 'ACK', 'PRICE': reqMoney, 'RIDX': self.room.roomIdx}
