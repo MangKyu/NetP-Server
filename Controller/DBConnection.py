@@ -15,37 +15,42 @@ class DBConnection:
         self.curs = self.conn.cursor(pymysql.cursors.DictCursor)
 
     # insert the tuple to db
-    def insert(self, msgDict, mode):
+    def insert(self, data, mode):
         try:
             with self.conn.cursor() as cursor:
                 # insert user data into user table
                 if mode == 1:
                     sql = 'INSERT INTO user (name, id, pw, mail) VALUES (%s, %s, %s, %s)'
-                    cursor.execute(sql, (msgDict['NAME'], msgDict['ID'], msgDict['PW'], msgDict['MAIL']))
+                    cursor.execute(sql, (data['NAME'], data['ID'], data['PW'], data['MAIL']))
 
                 # insert into room data into room table
                 elif mode == 2:
                     sql = 'INSERT INTO room (startTime, endTime, price) VALUES (%s, %s, %s)'
                     nowDateTime, laterDateTime = self.createDate()
-                    cursor.execute(sql, (nowDateTime, laterDateTime, msgDict['PRICE']))
+                    cursor.execute(sql, (nowDateTime, laterDateTime, data['PRICE']))
                     roomIdx = self.getData(None, 1)
                     return True, roomIdx, laterDateTime
 
                 # insert item data into item table
                 elif mode == 3:
-                    item = msgDict['ITEM']
+                    item = data['ITEM']
                     roomIdx = self.getData(None, 1)
-                    seller = self.getIndex(item.seller)
+                    seller = self.getData(item.seller, 3)
                     sql = 'INSERT INTO item (roomIdx, seller, itemName, imgPath, itemDesc) ' \
                           'VALUES (%s, %s, %s, %s, %s) '
                     cursor.execute(sql, (int(roomIdx), int(seller), item.itemName,
                                          item.imgPath, item.itemDesc))
+                #insert auction
+                elif mode == 4:
+                    teller = self.getData(data, 2)
+                    sql = 'INSERT INTO auclist (roomIdx, teller) VALUES (%s, %s)'
+                    cursor.execute(sql, (int(data), int(teller)))
                 self.conn.commit()
                 return True
         finally:
             pass
 
-    # update the data to database
+        # update the data to database
     def updateData(self, index, data, mode):
         try:
             with self.conn.cursor() as cursor:
@@ -67,7 +72,7 @@ class DBConnection:
         finally:
             pass
 
-    def getMyRooms(self, myIdx, mode):
+    def getMyRooms(self, index, mode):
         try:
             now = datetime.datetime.now()
             nowDateTime = now.strftime('%Y-%m-%d %H:%M:%S')
@@ -75,37 +80,17 @@ class DBConnection:
                 if mode == 1:
                     sql = 'SELECT item.roomIdx, user.name,itemName FROM item, user,room where item.roomIdx = room.roomIdx' \
                           ' and user.myIdx = room.prebuyer and room.prebuyer = %s and room.endTime > %s and room.startTime <= %s'
-                    cursor.execute(sql, (int(myIdx), nowDateTime, nowDateTime))
+                    cursor.execute(sql, (int(index), nowDateTime, nowDateTime))
                 elif mode == 2:
                     sql = 'SELECT item.roomIdx, user.name,itemName FROM item, user, auclist where auclist.teller = %s and auclist.teller = user.myIdx and auclist.roomIdx = item.roomIdx'
-                    cursor.execute(sql, int(myIdx))
                 elif mode == 3:
                     sql = 'select itemName, imgPath, price, room.roomIdx FROM room, item, watchlist where watchlist.roomIdx=room.roomIdx ' \
                           'and room.roomIdx = item.roomIdx and watchlist.myIdx = %s'
-                    cursor.execute(sql, int(myIdx))
+                elif mode == 4:
+                    sql = 'SELECT item.roomIdx, user.name,itemName FROM item, user where item.seller = user.myIdx and item.roomIdx > %s'
+                if mode != 1:
+                    cursor.execute(sql, int(index))
                 result = cursor.fetchall()
-                self.conn.commit()
-                return result
-        finally:
-            pass
-
-    def getRooms(self, alarmIdx):
-        try:
-            with self.conn.cursor() as cursor:
-                sql = 'SELECT item.roomIdx, user.name,itemName FROM item, user where item.seller = user.myIdx and item.roomIdx > %s'
-                cursor.execute(sql, int(alarmIdx))
-                result = cursor.fetchall()
-                self.conn.commit()
-                return result
-        finally:
-            pass
-
-    def getAucData(self, roomIdx):
-        try:
-            with self.conn.cursor() as cursor:
-                sql = 'SELECT prebuyer, price FROM room where room.roomIdx = %s'
-                cursor.execute(sql, int(roomIdx))
-                result = cursor.fetchone()
                 self.conn.commit()
                 return result
         finally:
@@ -117,7 +102,7 @@ class DBConnection:
             with self.conn.cursor() as cursor:
                 if mode == 1:
                     sql = 'DELETE FROM watchlist WHERE myIdx = %s and roomIdx = %s'
-                elif mode ==2:
+                elif mode == 2:
                     sql = 'INSERT INTO watchlist (myIdx, roomIdx) VALUES (%s, %s)'
                 cursor.execute(sql, (myIdx, roomIdx))
                 self.conn.commit()
@@ -179,10 +164,10 @@ class DBConnection:
                 # get Money
                 elif mode == 2:
                     sql = 'SELECT money FROM user WHERE myIdx = %s '
+                    data = int(data)
                 # get name
                 elif mode == 3:
                     sql = 'SELECT name FROM user WHERE myIdx = %s '
-
 
                 cursor.execute(sql, data)
                 result = cursor.fetchone()
@@ -190,23 +175,17 @@ class DBConnection:
                 return result[0]
         finally:
             pass
-    # search the tuple from db
-    def getIndex(self, id):
-        try:
-            with self.conn.cursor() as cursor:
-            # get myIdx
-                sql = 'SELECT myIdx FROM user WHERE id = %s'
-                cursor.execute(sql, id)
-                result = cursor.fetchone()
-                self.conn.commit()
-            return result[0]
-        finally:
-            pass
 
-    def getPreBuyer(self, roomIdx):
+    def getRoomData(self, roomIdx, mode):
         try:
             with self.conn.cursor() as cursor:
-                sql = 'select room.prebuyer, item.itemName from item, room where room.roomIdx = item.roomIdx and room.roomIdx = %s'
+                if mode == 1:
+                    sql = 'select room.prebuyer, item.itemName from item, room where room.roomIdx = item.roomIdx and room.roomIdx = %s'
+                elif mode == 2:
+                    sql = 'SELECT prebuyer, price FROM room where room.roomIdx = %s'
+                elif mode == 3:
+                    sql = 'SELECT room.endTime, user.id, room.price,item.itemName, item.imgPath, item.itemDesc FROM item, ' \
+                          'user, room where item.seller = user.myIdx and room.roomIdx = item.roomIdx and room.roomIdx = %s'
                 cursor.execute(sql, roomIdx)
                 self.conn.commit()
                 result = cursor.fetchone()
@@ -235,6 +214,8 @@ class DBConnection:
                 elif mode == 2:
                     sql = 'SELECT prebuyer FROM room WHERE roomIdx = %s'
                     data = int(data)
+                elif mode == 3:
+                    sql = 'SELECT myIdx FROM user WHERE id = %s'
                 if mode == 1:
                     cursor.execute(sql, None)
                 else:
@@ -242,29 +223,6 @@ class DBConnection:
                 result = cursor.fetchone()
                 self.conn.commit()
                 return result[0]
-        finally:
-            pass
-
-    def insertAuc(self, roomIdx):
-        teller = self.getData(roomIdx, 2)
-        try:
-            with self.conn.cursor() as cursor:
-                sql = 'INSERT INTO auclist (roomIdx, teller) VALUES (%s, %s)'
-                cursor.execute(sql, (int(roomIdx), int(teller)))
-                self.conn.commit()
-                return True
-        finally:
-            pass
-
-    def getItem(self, roomIdx):
-        try:
-            with self.conn.cursor() as cursor:
-                sql = 'SELECT room.endTime, user.id, room.price,item.itemName, item.imgPath, item.itemDesc FROM item, ' \
-                      'user, room where item.seller = user.myIdx and room.roomIdx = item.roomIdx and room.roomIdx = %s'
-                cursor.execute(sql, int(roomIdx))
-                result = cursor.fetchone()
-                self.conn.commit()
-                return result
         finally:
             pass
 

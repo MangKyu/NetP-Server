@@ -8,6 +8,7 @@ def main():
     index = 1
     serverList = {}
     clientList = []
+    clientMax = 2
 
     # wait for another client
     serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -19,11 +20,11 @@ def main():
         clientSocket, addr = serverSocket.accept()
         for i in range(len(serverList)):
 
-            if len(serverList[i+1].threadList) < 2:
+            if len(serverList[i+1].threadList) < clientMax:
                 sFlag = False
                 index = i+1
                 break
-            elif i == len(serverList)-1 and len(serverList[i+1].threadList) >= 2:
+            elif i == len(serverList)-1 and len(serverList[i+1].threadList) >= clientMax:
                 sFlag = True
                 index = len(serverList) +1
                 break

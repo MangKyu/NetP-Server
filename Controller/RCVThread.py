@@ -10,9 +10,11 @@ class RCVThread(threading.Thread):
     mc = None
     user = None
     aesCipher = None
+    server = None
 
     # Constructor for RCVThread instance
-    def __init__(self, threadList, clientSock, db, mc):
+    def __init__(self,server, threadList, clientSock, db, mc):
+        self.server = server
         threading.Thread.__init__(self)
         self.threadList = threadList
         self.clientSocket = clientSock
@@ -47,7 +49,7 @@ class RCVThread(threading.Thread):
                         for i in range(len(roomList)):
                             self.sendImg(roomList[i][1])
         except:
-            print('노노노노~')
+            self.exit()
 
     # analyze the message
     def analyzeMsg(self, msg):
@@ -64,13 +66,19 @@ class RCVThread(threading.Thread):
             pwBool = self.db.search(msgDict['PW'], 2)
             sendDict['MSG'] = '/LGIN'
             if not idBool and not pwBool:
-                myIdx = self.db.getIndex(msgDict['ID'])
+                myIdx = self.db.getData(msgDict['ID'], 3)
                 sendDict['MONEY'] = self.db.getData_Index(myIdx, 2)
                 sendDict['NAME'] = self.db.getData_Index(myIdx, 3)
-                sendDict['RPLY'] = 'ACK'
-                sendDict['ID'] = msgDict['ID']
-                self.user = User.User(self.clientSocket, msgDict['ID'], sendDict['MONEY'], myIdx)
-                self.mc.userList.append(self.user)
+                lFlag = True
+                for i in range(len(self.mc.userList)):
+                    if myIdx == self.mc.userList[i].myIdx:
+                        lFlag = False
+                        break
+                if lFlag:
+                    sendDict['RPLY'] = 'ACK'
+                    sendDict['ID'] = msgDict['ID']
+                    self.user = User.User(self.clientSocket, msgDict['ID'], sendDict['MONEY'], myIdx)
+                    self.mc.userList.append(self.user)
         elif msgDict['MSG'] == '/MAIL':
             mailBool = self.db.search(msgDict['MAIL'], 3)
             sendDict['MSG'] = '/MAIL'
@@ -113,7 +121,7 @@ class RCVThread(threading.Thread):
                     self.mc.createRoom(roomIdx, endTime, item)
 
         elif msgDict['MSG'] == '/RINF' or msgDict['MSG'] == '/CHWC':
-            info = self.db.getItem(msgDict['RIDX'])
+            info = self.db.getRoomData(msgDict['RIDX'], 3)
             sendDict = self.mc.createItemDict(sendDict, info)
             sendDict['WATCH'] = self.db.checkWatch(self.user.myIdx, msgDict['RIDX'])
             if msgDict['MSG'] == '/CHWC':
@@ -126,10 +134,10 @@ class RCVThread(threading.Thread):
 
         elif msgDict['MSG'] == '/ACRQ':
             myIdx = self.user.myIdx
-            preData = self.db.getPreBuyer(msgDict['RIDX'])
+            preData = self.db.getRoomData(msgDict['RIDX'], 1)
 
             # itname, prebuyer, msg, sgDict
-            self.sendAlarm(preData[0], preData[1], '/FAILED', msgDict['PRICE'])
+            self.sendAlarm(preData[0], preData[1], '/FAILED', msgDict['PRICE'], 0)
 
             rFlag = self.db.reqAuction(msgDict['RIDX'], myIdx, msgDict['PRICE'])
             if rFlag:
@@ -181,7 +189,7 @@ class RCVThread(threading.Thread):
         self.clientSocket.send(aesMsg)
 
     # send alarm to client who is joining in the auction
-    def sendAlarm(self, buyer, itemName, msg, money=None):
+    def sendAlarm(self, buyer, itemName, msg, money, roomIdx):
 
         sendDict = {'MSG': '/ALRM'}
         if msg == '/SUCCESS':
@@ -194,6 +202,7 @@ class RCVThread(threading.Thread):
         elif msg == '/SELLER':
             sendDict['RPLY'] = 'NON'
             sendDict['MONEY'] = money
+            sendDict['RIDX'] = roomIdx
 
         for i in range(len(self.mc.userList)):
             if buyer == self.mc.userList[i].myIdx:
@@ -230,7 +239,7 @@ class RCVThread(threading.Thread):
     # send room list data to client
     def sendListRef(self, userList, mode):
         sendDict = {'MSG': '/RLST'}
-        rooms = self.db.getRooms(self.mc.alarmIdx)
+        rooms = self.db.getMyRooms(self.mc.alarmIdx, 4)
         sendDict['ROOMS'] = self.mc.createRoomList(rooms)
         if mode == 'ALL':
             aesMsg = self.aesCipher.encrypt(sendDict)
@@ -248,3 +257,5 @@ class RCVThread(threading.Thread):
             self.mc.userList.remove(self.user)
         except:
             print("No user in userList")
+        if len(self.threadList) == 0:
+            self.server.destroy()

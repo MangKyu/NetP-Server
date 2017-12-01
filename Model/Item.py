@@ -1,5 +1,3 @@
-from PIL import Image
-
 class Item:
     seller = None
     itemName = None

@@ -35,7 +35,7 @@ class Server(threading.Thread):
 
         while True:
             clientSocket, addr = self.serverSocket.accept()
-            rcvThread = RCVThread.RCVThread(self.threadList, clientSocket, self.db, self.mc)
+            rcvThread = RCVThread.RCVThread(self, self.threadList, clientSocket, self.db, self.mc)
             self.threadList.append(rcvThread)
             self.clientList.append(clientSocket)
             rcvThread.start()
